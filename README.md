@@ -2,6 +2,9 @@
 <h1>Overview</h1>
 A Plex agent for fetching gay adult video metadata. https://forums.plex.tv/discussion/32922/adult-agents-for-gay-titles
 
+<h1>See Similar</h1>
+<ul><li><a href="https://github.com/CodyBerenson/PGMA-Modernized">Plex Metadata Agents PGMA</a></li></ul>
+
 <h1>Versioning</h1>
 Calendar Versioning is used for this software. YYYY.0M.0D.micro Zero-padded month and day. Note that if there are multiple updates within the same day micro versions are used, these are patches.
 
