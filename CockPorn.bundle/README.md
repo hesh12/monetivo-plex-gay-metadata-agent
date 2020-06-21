@@ -1,3 +1,3 @@
-# GayScenes.bundle
+# CockPorn.bundle
 
 Plex metadata agent for fetching metadata for Gay Scenes material.

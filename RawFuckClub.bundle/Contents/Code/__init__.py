@@ -1,9 +1,13 @@
 # RawFuckClub
 import re, os, platform, cgi, datetime
 
-PLUGIN_LOG_TITLE = 'Raw Fuck Club' # Log Title
-
-VERSION_NO = '2018.02.18.0'
+AGENT_NAME             = 'Raw Fuck Club'
+AGENT_VERSION          = '2020.06.21.0'
+AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
+AGENT_FALLBACK_AGENT   = False
+AGENT_PRIMARY_PROVIDER = False
+AGENT_CONTRIBUTES_TO   = ['com.plexapp.agents.cockporn']
+AGENT_CACHE_TIME       = CACHE_1HOUR * 24
 
 # Delay used when requesting HTML, may be good to have to prevent being
 # banned from the site
@@ -17,231 +21,252 @@ BASE_ITEM_URL = 'https://www.rawfuckclub.com/vod/RFC/'
 movie_pattern = re.compile(Prefs['regex'])
 
 def Start():
-  HTTP.CacheTime = CACHE_1WEEK
-  HTTP.Headers['Cookie'] = 'CONSENT=Y' #Bypasses the age verification screen
-  HTTP.Headers['User-agent'] = 'Mozilla/4.0 (compatible; MSIE 8.0; ' \
-  'Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; ' \
-  '.NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)'
+	Log.Info('-----------------------------------------------------------------------')
+	Log.Info('[' + AGENT_NAME + '] ' + 'Starting Metadata Agent ' + AGENT_VERSION)
+	HTTP.CacheTime = AGENT_CACHE_TIME
+	HTTP.Headers['Cookie'] = 'CONSENT=Y' #Bypasses the age verification screen
+	HTTP.Headers['User-agent'] = 'Mozilla/4.0 (compatible; MSIE 8.0; ' \
+	'Windows NT 6.2; Trident/4.0; SLCC2; .NET CLR 2.0.50727; ' \
+	'.NET CLR 3.5.30729; .NET CLR 3.0.30729; Media Center PC 6.0)'
+
+def ValidatePrefs():
+	Log.Info('[' + AGENT_NAME + '] ' + 'Validating Preferences')
+	Log.Debug('[' + AGENT_NAME + '] ' + 'Folder(s) where these items might be found: ' + str(Prefs['folders']))
+	Log.Debug('[' + AGENT_NAME + '] ' + 'Regular expression: ' + str(Prefs['regex']))
+	Log.Debug('[' + AGENT_NAME + '] ' + 'Cover Images to download: ' + str(Prefs['cover']))
+	Log.Debug('[' + AGENT_NAME + '] ' + 'Ouput debugging info in logs: ' + str(Prefs['debug']))
+	Log.Info('[' + AGENT_NAME + '] ' + 'Validation Complete')
 
 class RawFuckClub(Agent.Movies):
-  name = 'Raw Fuck Club'
-  languages = [Locale.Language.English]
-  primary_provider = False
-  contributes_to = ['com.plexapp.agents.cockporn']
-  
-  def Log(self, message, *args):
-    if Prefs['debug']:
-      Log(PLUGIN_LOG_TITLE + ' - ' + message, *args)
+	name = AGENT_NAME
+	languages = AGENT_LANGUAGES
+	media_types = ['Movie']
+	primary_provider = AGENT_PRIMARY_PROVIDER
+	fallback_agent = False
+	contributes_to = AGENT_CONTRIBUTES_TO
 
-  def search(self, results, media, lang):
-    self.Log('-----------------------------------------------------------------------')
-    self.Log('SEARCH CALLED v.%s', VERSION_NO)
-    self.Log('SEARCH - Platform: %s %s', platform.system(), platform.release())
-    self.Log('SEARCH - results - %s', results)
-    self.Log('SEARCH - media.title - %s', media.title)
-    self.Log('SEARCH - media.items[0].parts[0].file - %s', media.items[0].parts[0].file)
-    self.Log('SEARCH - media.filename - %s', media.filename)
-    self.Log('SEARCH - %s', results)
+	def log(self, state, message, *args):
+		if Prefs['debug']:
+			if state == 'info':
+				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+			elif state == 'debug':
+				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
 
-    if not media.items[0].parts[0].file:
-      return
+	def search(self, results, media, lang):
+		self.log('info', '-----------------------------------------------------------------------')
+		self.log('debug', 'SEARCH - Platform: %s %s', platform.system(), platform.release())
+		self.log('debug', 'SEARCH - results - %s', results)
+		self.log('debug', 'SEARCH - media.title - %s', media.title)
+		self.log('debug', 'SEARCH - media.items[0].parts[0].file - %s', media.items[0].parts[0].file)
+		self.log('debug', 'SEARCH - media.filename - %s', media.filename)
+		self.log('debug', 'SEARCH - %s', results)
 
-    path_and_file = media.items[0].parts[0].file
-    self.Log('SEARCH - File Path: %s', path_and_file)
+		if not media.items[0].parts[0].file:
+			return
 
-    path_and_file = os.path.splitext(path_and_file)[0]
-    (file_dir, basename) = os.path.split(os.path.splitext(path_and_file)[0])
-    final_dir = os.path.split(file_dir)[1]
-    file_name = basename #Sets string to lower.
-    self.Log('SEARCH - File Name: %s', file_name)
+		path_and_file = media.items[0].parts[0].file
+		self.log('debug', 'SEARCH - File Path: %s', path_and_file)
 
-    self.Log('SEARCH - Enclosing Folder: %s', final_dir)
+		path_and_file = os.path.splitext(path_and_file)[0]
+		enclosing_directory, file_name = os.path.split(os.path.splitext(path_and_file)[0])
+		enclosing_directory, enclosing_folder = os.path.split(enclosing_directory)
+		self.log('debug', 'SEARCH - Enclosing Folder: %s', enclosing_folder)
+		self.log('debug', 'SEARCH - File Name: %s', file_name)
 
-    if Prefs['folders'] != "*":
-      folder_list = re.split(',\s*', Prefs['folders'])
-      if final_dir not in folder_list:
-        self.Log('SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, final_dir, ','.join(folder_list))
-        return
+		if Prefs['folders'] != "*":
+			folder_list = re.split(',\s*', Prefs['folders'])
+			if enclosing_folder not in folder_list:
+				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
+				return
 
-    m = movie_pattern.search(file_name)
-    if not m:
-      self.Log('SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
-      return
+		m = movie_pattern.search(file_name)
+		if not m:
+			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
+			return
 
-    search_query_raw = list()
-    for piece in file_name.split(' '):
-        search_query_raw.append(cgi.escape(piece))
+		groups = m.groupdict()
+		file_studio = groups['studio']
+		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-    search_query="+".join(search_query_raw)
-    self.Log('SEARCH - Search Query: %s', search_query)
-    html=HTML.ElementFromURL(BASE_SEARCH_URL % search_query, sleep=REQUEST_DELAY)
-    score=10
-    search_results=html.xpath('//*[@id="browse_entries"]/div')
+		if len(file_studio) > 0 and file_studio.lower() != AGENT_NAME.lower():
+			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
+			return
 
-    if len(search_results) > 0:
-      self.Log('SEARCH - results size exact match: %s', len(search_results))
-      for result in search_results:
-        video_title = result.xpath('a[1]/h3/text()')
-        video_url = BASE_ITEM_URL + result.xpath('a[1]/@href')[0]
-        self.Log('SEARCH - Exact video title: %s', video_title)
-        self.Log('SEARCH - Exact video URL: %s', video_url)
-        results.Append(MetadataSearchResult(id = video_url, name = video_title, score = 98, lang = lang))
-        return
-    else:
-      self.Log('SEARCH - Results size: %s', len(search_results))
-      for result in search_results:
-        video_title = result.findall('div[@id="browse_entries"]/div/a[1]/h3/text()')
-        video_title = video_title.lstrip(' ') #Removes white spaces on the left end.
-        video_title = video_title.rstrip(' ') #Removes white spaces on the right end.
-        video_title = video_title.replace(':', '')
-        self.Log('SEARCH - Video title: %s', video_title)
-      return
+		clip_name = groups['clip_name']
 
-  def fetch_title(self, html, file_name):
-    self.Log('UPDATE: fetch_title CALLED')
-    video_title = [0, 1]
-    if file_name.find("scene") > 0:
-      self.Log('UPDATE - There are scenes in the filename')
-      return
-    else:
-      self.Log('UPDATE - Getting title of video')
-      video_title[0] = html.xpath('//*[@id="browse_entries"]/div/a[1]/h3/text()')
-      return video_title
-    video_title = title(self, html, file_name)
-    self.Log('UPDATE - Video_title: "%s"' % video_title[0])
+		search_query_raw = list()
+		for piece in file_name.split(' '):
+			search_query_raw.append(cgi.escape(piece))
 
-  def fetch_date(self, html, metadata):
-    self.Log('UPDATE: fetch_date CALLED')
-    release_date = html.xpath('//*[@id="watch_postdate"]/text()')[0].strip()
-    self.Log('UPDATE - Release Date: %s' % release_date)
+		search_query="+".join(search_query_raw)
+		self.log('debug', 'SEARCH - Search Query: %s', search_query)
+		html=HTML.ElementFromURL(BASE_SEARCH_URL % search_query, sleep=REQUEST_DELAY)
+		score=10
+		search_results=html.xpath('//*[@id="browse_entries"]/div')
 
-    #date_original = datetime.datetime.strptime(release_date, '%Y-%m-%d').strftime('%b %-d, %Y')
-    date_original = Datetime.ParseDate(release_date).date()
-    self.Log('UPDATE - Reformatted Release Date: %s' % date_original)
+		if len(search_results) > 0:
+			self.log('debug', 'SEARCH - results size exact match: %s', len(search_results))
+			for result in search_results:
+				video_title = result.xpath('a[1]/h3/text()')
+				video_url = BASE_ITEM_URL + result.xpath('a[1]/@href')[0]
+				self.log('debug', 'SEARCH - Exact video title: %s', video_title)
+				self.log('debug', 'SEARCH - Exact video URL: %s', video_url)
+				results.Append(MetadataSearchResult(id = video_url, name = video_title, score = 98, lang = lang))
+				return
+		else:
+			self.log('debug', 'SEARCH - Results size: %s', len(search_results))
+			for result in search_results:
+				video_title = result.findall('div[@id="browse_entries"]/div/a[1]/h3/text()')
+				video_title = video_title.lstrip(' ') #Removes white spaces on the left end.
+				video_title = video_title.rstrip(' ') #Removes white spaces on the right end.
+				video_title = video_title.replace(':', '')
+				self.log('debug', 'SEARCH - Video title: %s', video_title)
+			return
 
-    metadata.originally_available_at = date_original
-    metadata.year = metadata.originally_available_at.year
+	def fetch_title(self, html, file_name):
+		self.log('info', 'UPDATE: fetch_title CALLED')
+		video_title = [0, 1]
+		if file_name.find("scene") > 0:
+			self.log('info', 'UPDATE - There are scenes in the filename')
+			return
+		else:
+			self.log('info', 'UPDATE - Getting title of video')
+			video_title[0] = html.xpath('//*[@id="browse_entries"]/div/a[1]/h3/text()')
+			return video_title
+		video_title = title(self, html, file_name)
+		self.log('info', 'UPDATE - Video_title: "%s"' % video_title[0])
 
-  def fetch_summary(self, html, metadata):
-    self.Log('UPDATE: fetch_summary CALLED')
-    try:
-      video_summary=html.xpath('//*[@id="watch_description"]/text()')[0]
-      self.Log('UPDATE - Summary: %s', video_summary)
-      metadata.summary = video_summary
-    except Exception as e:
-      self.Log('UPDATE - Error getting description text: %s', e)
-      pass
+	def fetch_date(self, html, metadata):
+		self.log('info', 'UPDATE: fetch_date CALLED')
+		release_date = html.xpath('//*[@id="watch_postdate"]/text()')[0].strip()
+		self.log('info', 'UPDATE - Release Date: %s' % release_date)
 
-  def fetch_cast(self, html, metadata):
-    self.Log('UPDATE: fetch_cast CALLED')
-    try:
-      video_cast=html.xpath('//*[@id="watch_actors_items"]/ul/li/a/text()')
-      self.Log('UPDATE - Cast: "%s"' % video_cast)
-      metadata.roles.clear()
-      for cast in video_cast:
-        cname = cast.strip()
-        if (len(cname) > 0):
-          role = metadata.roles.new()
-          role.name = cname
-    except Exception as e:
-      self.Log('UPDATE - Error getting cast text: %s', e)
-      pass
+		#date_original = datetime.datetime.strptime(release_date, '%Y-%m-%d').strftime('%b %-d, %Y')
+		date_original = Datetime.ParseDate(release_date).date()
+		self.log('info', 'UPDATE - Reformatted Release Date: %s' % date_original)
 
-  def fetch_genres(self, html, metadata):
-    self.Log('UPDATE: fetch_genres CALLED')
-    metadata.genres.clear()
-    genres = html.xpath('//*[@id="watch_categories_items"]/ul/li/a/text()')
-    self.Log('UPDATE - Genres: "%s"' % genres)
-    metadata.genres.add('Bareback')
-    for genre in genres:
-      genre = genre.strip()
-      if (len(genre) > 0):
-        metadata.genres.add(genre)
+		metadata.originally_available_at = date_original
+		metadata.year = metadata.originally_available_at.year
 
-  def fetch_images(self, html, metadata):
-    self.Log('UPDATE: fetch_images CALLED')
-    i = 0
+		def fetch_summary(self, html, metadata):
+			self.log('info', 'UPDATE: fetch_summary CALLED')
+		try:
+			video_summary=html.xpath('//*[@id="watch_description"]/text()')[0]
+			self.log('info', 'UPDATE - Summary: %s', video_summary)
+			metadata.summary = video_summary
+		except Exception as e:
+			self.log('info', 'UPDATE - Error getting description text: %s', e)
+			pass
 
-    try:
-      coverPrefs = int(Prefs['cover'])
-    except ValueError:
-      # an absurdly high number means "download all the things"
-      coverPrefs = 10000
+	def fetch_cast(self, html, metadata):
+		self.log('info', 'UPDATE: fetch_cast CALLED')
+		try:
+			video_cast=html.xpath('//*[@id="watch_actors_items"]/ul/li/a/text()')
+			self.log('info', 'UPDATE - Cast: "%s"' % video_cast)
+			metadata.roles.clear()
+			for cast in video_cast:
+				cname = cast.strip()
+				if (len(cname) > 0):
+					role = metadata.roles.new()
+					role.name = cname
+		except Exception as e:
+			self.log('info', 'UPDATE - Error getting cast text: %s', e)
+			pass
 
-    valid_image_names = []
+	def fetch_genres(self, html, metadata):
+		self.log('info', 'UPDATE: fetch_genres CALLED')
+		metadata.genres.clear()
+		genres = html.xpath('//*[@id="watch_categories_items"]/ul/li/a/text()')
+		self.log('info', 'UPDATE - Genres: "%s"' % genres)
+		metadata.genres.add('Bareback')
+		for genre in genres:
+			genre = genre.strip()
+			if (len(genre) > 0):
+				metadata.genres.add(genre)
 
-    images = html.xpath('//*[@id="watch_stills"]/div[@class="watchphoto"]/img/@src')
-    self.Log('UPDATE - Image URLs: "%s"' % images)
+	def fetch_images(self, html, metadata):
+		self.log('info', 'UPDATE: fetch_images CALLED')
+		i = 0
 
-    for image in images:
-      image = image.strip()
-      if (len(image) > 0):
-        valid_image_names.append(image)
-        if image not in metadata.posters:
-          try:
-            i += 1
-            metadata.posters[image] = Proxy.Preview(HTTP.Request(image), sort_order=i)
-          except:
-            pass
+		try:
+			coverPrefs = int(Prefs['cover'])
+		except ValueError:
+			# an absurdly high number means "download all the things"
+			coverPrefs = 10000
 
-    return valid_image_names
+		valid_image_names = []
 
-  def update(self, metadata, media, lang):
-    self.Log('UPDATE CALLED')
+		images = html.xpath('//*[@id="watch_stills"]/div[@class="watchphoto"]/img/@src')
+		self.log('info', 'UPDATE - Image URLs: "%s"' % images)
 
-    enclosing_directory, file_name = os.path.split(os.path.splitext(media.items[0].parts[0].file)[0])
-    file_name = file_name.lower()
+		for image in images:
+			image = image.strip()
+			if (len(image) > 0):
+				valid_image_names.append(image)
+				if image not in metadata.posters:
+					try:
+						i += 1
+						metadata.posters[image] = Proxy.Preview(HTTP.Request(image), sort_order=i)
+					except:
+						pass
+		return valid_image_names
 
-    if not media.items[0].parts[0].file:
-      return
+	def update(self, metadata, media, lang):
+		self.log('info', 'UPDATE CALLED')
 
-    file_path = media.items[0].parts[0].file
-    self.Log('UPDATE - File Path: %s', file_path)
-    self.Log('UPDATE - Video URL: %s', metadata.id)
-    url = metadata.id
+		enclosing_directory, file_name = os.path.split(os.path.splitext(media.items[0].parts[0].file)[0])
+		file_name = file_name.lower()
 
-    # Fetch HTML
-    html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
+		if not media.items[0].parts[0].file:
+			return
 
-    # Set tagline to URL
-    metadata.tagline = url
+		file_path = media.items[0].parts[0].file
+		self.log('info', 'UPDATE - File Path: %s', file_path)
+		self.log('info', 'UPDATE - Video URL: %s', metadata.id)
+		url = metadata.id
 
-    # Set additional metadata
-    metadata.content_rating = 'X'
-    metadata.studio = "Raw Fuck Club"
+		# Fetch HTML
+		html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
 
-    # Try to get the title
-    try:
-      self.fetch_title(html, metadata)
-    except:
-      pass
+		# Set tagline to URL
+		metadata.tagline = url
 
-    # Try to get the release date
-    try:
-      self.fetch_date(html, metadata)
-    except:
-      pass
+		# Set additional metadata
+		metadata.content_rating = 'X'
+		metadata.studio = AGENT_NAME
 
-    # Try to get the summary
-    try:
-      self.fetch_summary(html, metadata)
-    except:
-      pass
+		# Try to get the title
+		try:
+			self.fetch_title(html, metadata)
+		except:
+			pass
 
-    # Try to get the cast
-    try:
-      self.fetch_cast(html, metadata)
-    except:
-      pass
+		# Try to get the release date
+		try:
+			self.fetch_date(html, metadata)
+		except:
+			pass
 
-    # Try to get the genres
-    try:
-      self.fetch_genres(html, metadata)
-    except:
-      pass
+		# Try to get the summary
+		try:
+			self.fetch_summary(html, metadata)
+		except:
+			pass
 
-    # Try to get the video images
-    try:
-      self.fetch_images(html, metadata)
-    except:
-      pass
+		# Try to get the cast
+		try:
+			self.fetch_cast(html, metadata)
+		except:
+			pass
+
+		# Try to get the genres
+		try:
+			self.fetch_genres(html, metadata)
+		except:
+			pass
+
+		# Try to get the video images
+		try:
+			self.fetch_images(html, metadata)
+		except:
+			pass

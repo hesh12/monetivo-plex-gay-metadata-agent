@@ -1,13 +1,13 @@
 [
   {
     "id": "folders",
-    "label": "Folders where these items might be found (comma-separated list) or all folders use *",
+    "label": "Folder(s) where these items might be found (comma-separated list) or all folders use *",
     "type": "text",
     "default": "Raw Fuck Club"
   },
   {
     "id": "regex",
-    "label": "Regular expression to match files by. Must contain named groups for clip number and clip name.",
+    "label": "Regular expression to match files by. Must contain named groups for `clip_name`. Optional: `studio`, `clip_number`",
     "type": "text",
     "default": "^(?P<clip_name>.+?)"
   },

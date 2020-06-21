@@ -9,7 +9,7 @@
     "id": "regex",
     "label": "Regular expression to match files by. Must contain named groups for `clip_name`. Optional: `studio`, `clip_number`",
     "type": "text",
-    "default": "^(\((?P<studio>.*?)\))(?P<clip_name>.+)"
+    "default": "^((?P<studio>.*) - )?(?P<clip_name>.*)"
   },
 	{
     "id": "cover",
