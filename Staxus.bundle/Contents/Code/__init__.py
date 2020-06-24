@@ -1,5 +1,6 @@
 # Staxus
 import re, os, platform, urllib, cgi
+#-*- coding: utf-8 -*-
 
 AGENT_NAME             = 'Staxus'
 AGENT_VERSION          = '2020.06.21.0'
@@ -54,9 +55,9 @@ class Staxus(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang, manual):
 		self.log('info', '-----------------------------------------------------------------------')
@@ -98,27 +99,26 @@ class Staxus(Agent.Movies):
 		file_studio = groups['studio']
 		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-		if len(file_studio) > 0 and file_studio.lower() != AGENT_NAME.lower():
+		if file_studio is not None and file_studio.lower() != AGENT_NAME.lower():
 			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
 			return
 
 		clip_name = groups['clip_name']
 		self.log('debug', 'SEARCH - Split File Name: %s', file_name.split(' '))
 
-		remove_words = file_name.lower() #Sets string to lower.
-		remove_words = remove_words.replace('staxus', '') #Removes word.
+		remove_words = file_name.lower()
+		remove_words = remove_words.replace(AGENT_NAME.lower(), '')
 		remove_words = re.sub('\(([^\)]+)\)', '', remove_words) #Removes anything inside of () and the () themselves.
-		remove_words = remove_words.lstrip(' ') #Removes white spaces on the left end.
-		remove_words = remove_words.rstrip(' ') #Removes white spaces on the right end.
+		remove_words = remove_words.strip(' ')
 		search_query_raw = list()
 		# Process the split filename to remove words with special characters. This is to attempt to find a match with the limited search function(doesn't process any non-alphanumeric characters correctly)
 		for piece in remove_words.split(' '):
 			search_query_raw.append(cgi.escape(piece))
-		search_query="%2C+".join(search_query_raw)
+		search_query = "%2C+".join(search_query_raw)
 		self.log('debug', 'SEARCH - Search Query: %s', search_query)
-		html=HTML.ElementFromURL(BASE_SEARCH_URL % search_query, sleep=REQUEST_DELAY)
-		search_results=html.xpath('//*[@class="item"]')
-		score=10
+		html = HTML.ElementFromURL(BASE_SEARCH_URL % search_query.replace('–', '-'), sleep=REQUEST_DELAY)
+		search_results = html.xpath('//*[@class="item"]')
+		score = 10
 		self.log('debug', 'SEARCH - results size: %s', len(search_results))
 		# Enumerate the search results looking for an exact match. The hope is that by eliminating special character words from the title and searching the remainder that we will get the expected video in the results.
 		for result in search_results:
@@ -157,25 +157,28 @@ class Staxus(Agent.Movies):
 		# Set tagline to URL
 		metadata.tagline = url
 
-		video_title = html.xpath('//div[@class="sidebar right sidebar-models"]/h2/text()')[0]
+		video_title = html.xpath('//div[@class="video-descr__title"]//h2/text()')[0]
 		self.log('info', 'UPDATE - video_title: "%s"' % video_title)
 
-		valid_image_names = list()
-		i = 0
-		video_image_list = html.xpath('//*[@class="reset collection-images"]/li/a/img')
+		video_image_list = html.xpath('//div[contains(@class, "gallery-image")]/a/@style')
+		self.log('info', 'UPDATE - video_image_list: "%s"' % video_image_list)
 		try:
+			valid_image_names = list()
+			video_image_pattern = "'([^' ]+)'"
+			i = 0
 			coverPrefs = Prefs['cover']
 			for image in video_image_list:
 				if i != coverPrefs or coverPrefs == "all available":
-					thumb_url = image.get('src')
-					#self.log('info', 'UPDATE - thumb_url: "%s"' % thumb_url)
-					poster_url = thumb_url.replace('300h', '1920w')
-					#self.log('info', 'UPDATE - poster_url: "%s"' % poster_url)
-					valid_image_names.append(poster_url)
-					if poster_url not in metadata.posters:
+					thumb_url = re.search(video_image_pattern, image).group(1)
+					thumb_url = thumb_url.replace('//', 'https://')
+					self.log('info', 'UPDATE - thumb_url: "%s"' % thumb_url)
+					# poster_url = thumb_url.replace('300h', '1920w')
+					# self.log('info', 'UPDATE - poster_url: "%s"' % poster_url)
+					valid_image_names.append(thumb_url)
+					if thumb_url not in metadata.posters:
 						try:
 							i += 1
-							metadata.posters[poster_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
+							metadata.posters[thumb_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
 						except: pass
 		except Exception as e:
 			self.log('info', 'UPDATE - Error getting posters: %s', e)
@@ -183,24 +186,22 @@ class Staxus(Agent.Movies):
 
 		# Try to get description text.
 		try:
-			raw_about_text=html.xpath('//div[@class="col-main"]/p')
-			self.log('info', 'UPDATE - About Text - RAW %s', raw_about_text)
-			about_text=' '.join(str(x.text_content().strip()) for x in raw_about_text)
-			metadata.summary=about_text
+			raw_about_text = html.xpath('//div[@class="video-descr__content"]/p')
+			about_text = ' '.join(str(x.text_content().strip()) for x in raw_about_text)
+			self.log('info', 'UPDATE - About Text: %s', about_text)
+			metadata.summary = about_text
 		except Exception as e:
 			self.log('info', 'UPDATE - Error getting description text: %s', e)
 			pass
 
 		# Try to get release date.
 		try:
-			rd=html.xpath('//div[@class="sidebar right sidebar-models"]/p[1]/span/text()')[0]
-			rd = rd.split('/')
-			rd = [rd[i] for i in [1,0,2]]
-			rd[1] = rd[1] + ', '
-			rd[0] = rd[0] + " "
-			rd=''.join(rd)
-			self.log('info', 'UPDATE - Release Date: %s', rd)
-			metadata.originally_available_at = Datetime.ParseDate(rd).date()
+			release_date_raw = str(html.xpath('//*/text()'))
+			date_pattern = '(\d{1,2})\/(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\/+(\d{4})'
+			date_match = re.search(date_pattern, release_date_raw).group(0)
+			release_date = Datetime.ParseDate(date_match).date()
+			self.log('info', 'UPDATE - Release Date: %s', release_date)
+			metadata.originally_available_at = release_date
 			metadata.year = metadata.originally_available_at.year
 		except Exception as e:
 			self.log('info', 'UPDATE - Error getting release date: %s', e)
@@ -209,7 +210,7 @@ class Staxus(Agent.Movies):
 		# Try to get and process the video cast.
 		try:
 			metadata.roles.clear()
-			htmlcast = html.xpath('//div[@class="sidebar right sidebar-models"]/p[4]/a/text()')
+			htmlcast = html.xpath('//div[@class="video-descr__model-listing"]/div/p/a/text()')
 			self.log('info', 'UPDATE - cast: "%s"' % htmlcast)
 			for cast in htmlcast:
 				cname = cast.strip()
@@ -223,7 +224,7 @@ class Staxus(Agent.Movies):
 		# Try to get and process the video genres.
 		try:
 			metadata.genres.clear()
-			genres = html.xpath('//div[@class="sidebar right sidebar-models"]/p[3]/span/a/text()')
+			genres = html.xpath('//div[@class="video-descr__section"]/p/a/text()')
 			self.log('info', 'UPDATE - video_genres: "%s"' % genres)
 			for genre in genres:
 				genre = genre.strip()
@@ -234,13 +235,14 @@ class Staxus(Agent.Movies):
 			pass
 
 		# Try to get and process the ratings.
+		rating = html.xpath('//span[@class="video-grade-average"]/strong/text()')[0]
+		self.log('info', 'UPDATE - video_rating: "%s"', rating)
+		rating_count_raw = html.xpath('//span[@class="video-grade-total"]/text()')[0]
+		self.log('info', 'UPDATE - rating_count_raw: "%s"', rating_count_raw)
+		count_pattern = '\d+'
+		rating_count = re.search(count_pattern, rating_count_raw).group(0)
+		self.log('info', 'UPDATE - video_rating_count: "%s"', rating_count)
 		try:
-			rating = html.xpath('//div[@class="col-md-4 col-xs-12 stats-single"]/b/text()')[0].strip()
-			rating_count = html.xpath('//div[@class="col-md-4 col-xs-12 stats-single"]//strong/text()')[0]
-			rating_count = rating_count.replace('(Total votes: ', '')
-			rating_count = rating_count.replace(')', '')
-			self.log('info', 'UPDATE - video_rating: "%s"', rating)
-			self.log('info', 'UPDATE - video_rating_count: "%s"', rating_count)
 			metadata.rating = float(rating)*2
 			metadata.rating_count = int(rating_count)
 		except Exception as e:

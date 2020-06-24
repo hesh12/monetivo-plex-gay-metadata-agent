@@ -111,7 +111,7 @@ class HelixStudios(Agent.Movies):
 		file_studio = groups['studio']
 		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-		if len(file_studio) > 0 and file_studio.lower() != AGENT_NAME.lower():
+		if file_studio is not None and file_studio.lower() != AGENT_NAME.lower():
 			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
 			return
 

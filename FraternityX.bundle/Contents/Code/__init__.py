@@ -88,7 +88,7 @@ class FraternityX(Agent.Movies):
 		file_studio = groups['studio']
 		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-		if len(file_studio) > 0 and file_studio.lower() != AGENT_NAME.lower():
+		if file_studio is not None and file_studio.lower() != AGENT_NAME.lower():
 			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
 			return
 
@@ -122,8 +122,7 @@ class FraternityX(Agent.Movies):
 			self.log('debug', 'SEARCH - Results size: %s', len(search_results))
 			for result in search_results:
 				video_title = result.findall('//*[@class="srg"]/*[@class="g"]//h3/text()')
-				video_title = video_title.lstrip(' ') #Removes white spaces on the left end.
-				video_title = video_title.rstrip(' ') #Removes white spaces on the right end.
+				video_title = video_title.strip()
 				video_title = video_title.replace(':', '')
 				self.log('debug', 'SEARCH - Video title: %s', video_title)
 			return

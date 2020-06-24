@@ -95,14 +95,14 @@ class NakedSword(Agent.Movies):
 		file_studio = groups['studio']
 		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-		if len(file_studio) > 0 and file_studio.lower() != AGENT_NAME.lower():
+		if file_studio is not None and file_studio.lower() != AGENT_NAME.lower():
 			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
 			return
 
 		if groups['clip_name'].find("scene") > 0:
 			self.log('debug', 'SEARCH - This is a scene: True')
-			scene = groups['clip_name'].split("scene",1)[1].lstrip(' ')
-			file_name = file_name.split("scene",1)[0].rstrip(' ')
+			scene = groups['clip_name'].split("scene", 1)[1].strip()
+			file_name = file_name.split("scene", 1)[0].strip()
 			self.log('debug', 'SEARCH - Movie: %s', file_name)
 			self.log('debug', 'SEARCH - Scene: %s', scene)
 			for piece in file_name.split(' '):
@@ -111,9 +111,8 @@ class NakedSword(Agent.Movies):
 			self.log('debug', 'SEARCH - This is a scene: False')
 			file_name = groups['clip_name']
 			self.log('info', 'DEBUG - file_name: %s', file_name)
-			file_name = file_name.lstrip(' ') #Removes white spaces on the left end.
-			file_name = file_name.lstrip('- ') #Removes white spaces on the left end.
-			file_name = file_name.rstrip(' ') #Removes white spaces on the right end.
+			file_name = file_name.lstrip('- ')
+			file_name = file_name.strip()
 			self.log('debug', 'SEARCH - Split File Name: %s', file_name.split(' '))
 			for piece in file_name.split(' '):
 				search_query_raw.append(cgi.escape(piece))
@@ -134,9 +133,6 @@ class NakedSword(Agent.Movies):
 		for result in search_results:
 			#result=result.find('')
 			video_title=result.findtext("div/div[2]/div/div/a")
-			#video_title = video_title.lstrip(' ') #Removes white spaces on the left end.
-			#video_title = video_title.rstrip(' ') #Removes white spaces on the right end.
-			#video_title = video_title.replace(':', '')
 			self.log('debug', 'SEARCH - video title: %s', video_title)
 			# Check the alt tag which includes the full title with special characters against the video title. If we match we nominate the result as the proper metadata. If we don't match we reply with a low score.
 			if video_title.lower() == file_name.lower():
