@@ -2,7 +2,7 @@
 import platform, sys
 
 AGENT_NAME             = 'Cock Porn'
-AGENT_VERSION          = '2020.06.21.0'
+AGENT_VERSION          = '2020.06.23.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_PRIMARY_PROVIDER = True
 AGENT_ACCEPTS_FROM     = ['com.plexapp.agents.localmedia']

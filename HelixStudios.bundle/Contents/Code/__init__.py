@@ -3,7 +3,7 @@ import re, os, platform, urllib
 from utils import Utils
 
 AGENT_NAME             = 'Helix Studios'
-AGENT_VERSION          = '2020.06.21.0'
+AGENT_VERSION          = '2020.06.23.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
