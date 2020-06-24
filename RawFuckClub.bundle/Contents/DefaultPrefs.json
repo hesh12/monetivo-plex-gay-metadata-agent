@@ -9,7 +9,7 @@
     "id": "regex",
     "label": "Regular expression to match files by. Must contain named groups for `clip_name`. Optional: `studio`, `clip_number`",
     "type": "text",
-    "default": "^(?P<clip_name>.+?)"
+    "default": "(?P<studio>^Raw Fuck Club)?\s*((-sc(?P<clip_number>[^']+)-))?\s*(?P<clip_name>.+)"
   },
   {
     "id": "cover",
@@ -23,7 +23,7 @@
       "5",
       "all available"
     ],
-    "default": "5"
+    "default": "1"
   },
   {
     "id": "debug",

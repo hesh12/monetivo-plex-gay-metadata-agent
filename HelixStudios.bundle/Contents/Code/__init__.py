@@ -3,7 +3,7 @@ import re, os, platform, urllib
 from utils import Utils
 
 AGENT_NAME             = 'Helix Studios'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -24,9 +24,6 @@ BASE_VIDEO_DETAILS_URL = 'https://www.helixstudios.net/video/%s'
 # Example Search URL:
 # https://www.helixstudios.net/videos/?q=Hosing+Him+Down
 BASE_SEARCH_URL = 'https://www.helixstudios.net/videos/?q=%s'
-
-# File names to match for this agent
-file_name_pattern = re.compile(Prefs['regex'])
 
 # Example File Name:
 # https://media.helixstudios.com/scenes/hx111_scene2/hx111_scene2_member_1080p.mp4
@@ -60,9 +57,11 @@ class HelixStudios(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def intTest(self, s):
 		try:
@@ -102,6 +101,14 @@ class HelixStudios(Agent.Movies):
 				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
 				return
 
+		# File names to match for this agent
+		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		try:
+			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			return
+
 		m = file_name_pattern.search(file_name)
 		if not m:
 			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
@@ -111,7 +118,7 @@ class HelixStudios(Agent.Movies):
 		file_studio = groups['studio']
 		self.log('debug', 'SEARCH - Studio: %s', file_studio)
 
-		if file_studio is not None and file_studio.lower() != AGENT_NAME.lower():
+		if file_studio is not None and AGENT_NAME.lower() in file_studio.lower():
 			self.log('debug', 'SEARCH - Skipping %s because does not match: %s', file_name, AGENT_NAME)
 			return
 
@@ -246,7 +253,7 @@ class HelixStudios(Agent.Movies):
 							metadata.posters[poster_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
 						except: pass
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting posters: %s', e)
+			self.log('error', 'UPDATE - Error getting posters: %s', e)
 			pass
 
 		# Try to get description text
@@ -255,7 +262,7 @@ class HelixStudios(Agent.Movies):
 			self.log('info', 'UPDATE - About Text - RAW %s', raw_about_text)
 			metadata.summary = raw_about_text[0]
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting description text: %s', e)
+			self.log('error', 'UPDATE - Error getting description text: %s', e)
 			pass
 
 		# Try to get release date
@@ -268,7 +275,7 @@ class HelixStudios(Agent.Movies):
 			metadata.originally_available_at = Datetime.ParseDate(release_date).date()
 			metadata.year = metadata.originally_available_at.year
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting release date: %s', e)
+			self.log('error', 'UPDATE - Error getting release date: %s', e)
 			pass
 
 		# Try to get and process the video cast
@@ -282,7 +289,7 @@ class HelixStudios(Agent.Movies):
 					role = metadata.roles.new()
 					role.name = cname
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting video cast: %s', e)
+			self.log('error', 'UPDATE - Error getting video cast: %s', e)
 			pass
 
 		# Try to get and process the video genres
@@ -295,7 +302,7 @@ class HelixStudios(Agent.Movies):
 				if (len(genre) > 0):
 					metadata.genres.add(genre)
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting video genres: %s', e)
+			self.log('error', 'UPDATE - Error getting video genres: %s', e)
 			pass
 
 		metadata.posters.validate_keys(valid_image_names)

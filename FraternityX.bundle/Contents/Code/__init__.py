@@ -2,7 +2,7 @@
 import re, os, platform, urllib, cgi
 
 AGENT_NAME             = 'FraternityX'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -16,9 +16,6 @@ REQUEST_DELAY = 0
 # URLS
 BASE_URL='https://fraternityx.com/episode/%s'
 BASE_SEARCH_URL='https://www.google.com/search?q=site%%3Afraternityx.com+%s'
-
-# File names to match for this agent
-movie_pattern = re.compile(Prefs['regex'])
 
 def Start():
 	Log.Info('-----------------------------------------------------------------------')
@@ -48,9 +45,11 @@ class FraternityX(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang):
 		self.log('info', '-----------------------------------------------------------------------')
@@ -79,7 +78,15 @@ class FraternityX(Agent.Movies):
 				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
 				return
 
-		m = movie_pattern.search(file_name)
+		# File names to match for this agent
+		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		try:
+			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			return
+
+		m = file_name_pattern.search(file_name)
 		if not m:
 			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
 			return
@@ -134,7 +141,7 @@ class FraternityX(Agent.Movies):
 			self.log('info', 'UPDATE - Summary: %s', video_title)
 			metadata.title = video_title
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting title text: %s', e)
+			self.log('error', 'UPDATE - Error getting title text: %s', e)
 			pass
 
 	def fetch_date(self, html, metadata):
@@ -148,7 +155,7 @@ class FraternityX(Agent.Movies):
 			metadata.originally_available_at = date_original
 			metadata.year = metadata.originally_available_at.year
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting release date: %s', e)
+			self.log('error', 'UPDATE - Error getting release date: %s', e)
 			pass
 
 	def fetch_summary(self, html, metadata):
@@ -158,7 +165,7 @@ class FraternityX(Agent.Movies):
 			self.log('info', 'UPDATE - Summary: %s', video_summary)
 			metadata.summary = video_summary
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting description text: %s', e)
+			self.log('error', 'UPDATE - Error getting description text: %s', e)
 			pass
 
 	def fetch_images(self, html, metadata):

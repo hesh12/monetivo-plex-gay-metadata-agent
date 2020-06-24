@@ -2,7 +2,7 @@
 import platform, sys
 
 AGENT_NAME             = 'Cock Porn'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_PRIMARY_PROVIDER = True
 AGENT_ACCEPTS_FROM     = ['com.plexapp.agents.localmedia']
@@ -28,9 +28,11 @@ class CockPornAgent(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang):
 		self.log('info', 'SEARCH CALLED v.%s', AGENT_VERSION)

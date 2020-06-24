@@ -2,7 +2,7 @@
 import re, os, platform, urllib, cgi
 
 AGENT_NAME             = 'NakedSword'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -17,9 +17,6 @@ REQUEST_DELAY = 0
 BASE_URL='http://www.nakedsword.com'
 BASE_VIDEO_DETAILS_URL=BASE_URL + 'movies/%s'
 BASE_SEARCH_URL='http://www.nakedsword.com/scenes/for/text/%s?content=Movies'
-
-# File names to match for this agent
-file_name_pattern = re.compile(Prefs['regex'])
 
 def Start():
 	Log.Info('-----------------------------------------------------------------------')
@@ -48,9 +45,11 @@ class NakedSword(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang, manual):
 		self.log('info', '-----------------------------------------------------------------------')
@@ -83,6 +82,14 @@ class NakedSword(Agent.Movies):
 			if enclosing_folder not in folder_list:
 				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
 				return
+
+		# File names to match for this agent
+		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		try:
+			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			return
 
 		m = file_name_pattern.search(file_name)
 		if not m:
@@ -227,7 +234,7 @@ class NakedSword(Agent.Movies):
 			about_text=' '.join(str(x.text_content().strip()) for x in raw_about_text)
 			metadata.summary=about_text
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting description text: %s', e)
+			self.log('error', 'UPDATE - Error getting description text: %s', e)
 			pass
 
 		# Try to get and process the release date.
@@ -237,7 +244,7 @@ class NakedSword(Agent.Movies):
 		#	metadata.originally_available_at = Datetime.ParseDate(rd).date()
 		#	metadata.year = metadata.originally_available_at.year
 		#except Exception as e:
-		#	self.log('info', 'UPDATE - Error getting release date: %s', e)
+		#	self.log('error', 'UPDATE - Error getting release date: %s', e)
 		#	pass
 
 		# Try to get and process the video genres.
@@ -261,7 +268,7 @@ class NakedSword(Agent.Movies):
 					if (len(genre) > 0):
 						metadata.genres.add(genre)
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting video genres: %s', e)
+			self.log('error', 'UPDATE - Error getting video genres: %s', e)
 			pass
 
 		# Crew.
@@ -272,7 +279,7 @@ class NakedSword(Agent.Movies):
 			self.log('info', 'UPDATE - director: "%s"', director)
 			metadata.directors.add(director)
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting director: %s', e)
+			self.log('error', 'UPDATE - Error getting director: %s', e)
 			pass
 
 		# Try to get and process the video cast.
@@ -315,7 +322,7 @@ class NakedSword(Agent.Movies):
 						role = metadata.roles.new()
 						role.name = cname
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting cast: %s', e)
+			self.log('error', 'UPDATE - Error getting cast: %s', e)
 			pass
 
 		# Try to get and process the studio name.
@@ -324,7 +331,7 @@ class NakedSword(Agent.Movies):
 			self.log('info', 'UPDATE - studio: "%s"', studio)
 			metadata.studio=studio
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting studio name: %s', e)
+			self.log('error', 'UPDATE - Error getting studio name: %s', e)
 			pass
 
 		metadata.content_rating = 'X'

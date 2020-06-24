@@ -2,7 +2,7 @@
 import re, os, platform, simplejson as json
 
 AGENT_NAME             = 'Sean Cody'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -19,9 +19,6 @@ BASE_URL = 'https://www.seancody.com%s'
 # Example Tour URL
 # http://www.seancody.com/tour/movie/9291/brodie-cole-bareback/trailer/
 BASE_TOUR_MOVIE_URL = 'http://www.seancody.com/tour/movie/%s/%s/trailer'
-
-# File names to match for this agent
-movie_pattern = re.compile(Prefs['regex'])
 
 def Start():
 	Log.Info('-----------------------------------------------------------------------')
@@ -50,9 +47,11 @@ class SeanCody(Agent.Movies):
 	def log(self, state, message, *args):
 		if Prefs['debug']:
 			if state == 'info':
-				Log.Info('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
-				Log.Debug('[' + AGENT_NAME + '] ' +  ' - ' + message, *args)
+				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang, manual):
 		self.log('info', '-----------------------------------------------------------------------')
@@ -85,7 +84,15 @@ class SeanCody(Agent.Movies):
 				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
 				return
 
-		m = movie_pattern.search(file_name)
+		# File names to match for this agent
+		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		try:
+			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			return
+
+		m = file_name_pattern.search(file_name)
 		if not m:
 			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
 			return

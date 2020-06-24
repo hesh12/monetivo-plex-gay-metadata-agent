@@ -1,9 +1,9 @@
 # Staxus
 import re, os, platform, urllib, cgi
-#-*- coding: utf-8 -*-
+from utils import Utils
 
 AGENT_NAME             = 'Staxus'
-AGENT_VERSION          = '2020.06.23.0'
+AGENT_VERSION          = '2020.06.24.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -24,9 +24,6 @@ BASE_VIDEO_DETAILS_URL='http://staxus.com/trial/%s'
 # Example Search URL:
 # http://staxus.com/trial/search.php?query=Staxus+Classic%3A+BB+Skate+Rave+-+Scene+1+-+Remastered+in+HD
 BASE_SEARCH_URL='http://staxus.com/trial/search.php?st=advanced&qall=%s'
-
-# File names to match for this agent
-file_name_pattern = re.compile(Prefs['regex'])
 
 def Start():
 	Log.Info('-----------------------------------------------------------------------')
@@ -58,6 +55,8 @@ class Staxus(Agent.Movies):
 				Log.Info('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 			elif state == 'debug':
 				Log.Debug('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
+			elif state == 'error':
+				Log.Error('[' + AGENT_NAME + '] ' + ' - ' + message, *args)
 
 	def search(self, results, media, lang, manual):
 		self.log('info', '-----------------------------------------------------------------------')
@@ -90,8 +89,17 @@ class Staxus(Agent.Movies):
 				self.log('debug', 'SEARCH - Skipping %s because the folder %s is not in the acceptable folders list: %s', file_name, enclosing_folder, ','.join(folder_list))
 				return
 
+		# File names to match for this agent
+		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		try:
+			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			return
+
 		m = file_name_pattern.search(file_name)
 		if not m:
+			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', m)
 			self.log('debug', 'SEARCH - Skipping %s because the file name is not in the expected format.', file_name)
 			return
 
@@ -105,14 +113,9 @@ class Staxus(Agent.Movies):
 
 		clip_name = groups['clip_name']
 		self.log('debug', 'SEARCH - Split File Name: %s', file_name.split(' '))
-
-		remove_words = file_name.lower()
-		remove_words = remove_words.replace(AGENT_NAME.lower(), '')
-		remove_words = re.sub('\(([^\)]+)\)', '', remove_words) #Removes anything inside of () and the () themselves.
-		remove_words = remove_words.strip(' ')
 		search_query_raw = list()
 		# Process the split filename to remove words with special characters. This is to attempt to find a match with the limited search function(doesn't process any non-alphanumeric characters correctly)
-		for piece in remove_words.split(' '):
+		for piece in clip_name.split(' '):
 			search_query_raw.append(cgi.escape(piece))
 		search_query = "%2C+".join(search_query_raw)
 		self.log('debug', 'SEARCH - Search Query: %s', search_query)
@@ -123,12 +126,15 @@ class Staxus(Agent.Movies):
 		# Enumerate the search results looking for an exact match. The hope is that by eliminating special character words from the title and searching the remainder that we will get the expected video in the results.
 		for result in search_results:
 			#result=result.find('')
-			video_title=result.findall("div/a/img")[0].get("alt")
-			video_title = video_title.lstrip(' ') #Removes white spaces on the left end.
-			video_title = video_title.rstrip(' ') #Removes white spaces on the right end.
+			video_title = result.findall("div/a/img")[0].get("alt")
+			video_title = video_title.lstrip()
+
+			utils = Utils()
+			matchscore = utils.getMatchScore(video_title.lower(), clip_name.lower())
+
 			self.log('debug', 'SEARCH - video title: %s', video_title)
 			# Check the alt tag which includes the full title with special characters against the video title. If we match we nominate the result as the proper metadata. If we don't match we reply with a low score.
-			if video_title.lower().replace(':','') == file_name.lower():
+			if matchscore > 90:
 				video_url=result.findall("div/a")[0].get('href')
 				self.log('debug', 'SEARCH - video url: %s', video_url)
 				image_url=result.findall("div/a/img")[0].get("src")
@@ -181,7 +187,7 @@ class Staxus(Agent.Movies):
 							metadata.posters[thumb_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
 						except: pass
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting posters: %s', e)
+			self.log('error', 'UPDATE - Error getting posters: %s', e)
 			pass
 
 		# Try to get description text.
@@ -191,7 +197,7 @@ class Staxus(Agent.Movies):
 			self.log('info', 'UPDATE - About Text: %s', about_text)
 			metadata.summary = about_text
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting description text: %s', e)
+			self.log('error', 'UPDATE - Error getting description text: %s', e)
 			pass
 
 		# Try to get release date.
@@ -204,7 +210,7 @@ class Staxus(Agent.Movies):
 			metadata.originally_available_at = release_date
 			metadata.year = metadata.originally_available_at.year
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting release date: %s', e)
+			self.log('error', 'UPDATE - Error getting release date: %s', e)
 			pass
 
 		# Try to get and process the video cast.
@@ -218,7 +224,7 @@ class Staxus(Agent.Movies):
 					role = metadata.roles.new()
 					role.name = cname
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting video cast: %s', e)
+			self.log('error', 'UPDATE - Error getting video cast: %s', e)
 			pass
 
 		# Try to get and process the video genres.
@@ -231,7 +237,7 @@ class Staxus(Agent.Movies):
 				if (len(genre) > 0):
 					metadata.genres.add(genre)
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting video genres: %s', e)
+			self.log('error', 'UPDATE - Error getting video genres: %s', e)
 			pass
 
 		# Try to get and process the ratings.
@@ -246,7 +252,7 @@ class Staxus(Agent.Movies):
 			metadata.rating = float(rating)*2
 			metadata.rating_count = int(rating_count)
 		except Exception as e:
-			self.log('info', 'UPDATE - Error getting rating: %s', e)
+			self.log('error', 'UPDATE - Error getting rating: %s', e)
 			pass
 
 		metadata.posters.validate_keys(valid_image_names)
