@@ -2,8 +2,10 @@
 import re, os, platform, urllib, cgi
 from utils import Utils
 
+# import certifi, requests
+
 AGENT_NAME             = 'Staxus'
-AGENT_VERSION          = '2020.06.24.0'
+AGENT_VERSION          = '2020.06.27.0'
 AGENT_LANGUAGES        = [Locale.Language.NoLanguage, Locale.Language.English]
 AGENT_FALLBACK_AGENT   = False
 AGENT_PRIMARY_PROVIDER = False
@@ -15,15 +17,15 @@ AGENT_CACHE_TIME       = CACHE_1HOUR * 24
 REQUEST_DELAY = 0
 
 # URLS
-BASE_URL='http://staxus.com%s'
+BASE_URL = 'http://staxus.com%s'
 
 # Example Video Details URL
 # http://staxus.com/trial/gallery.php?id=4044
-BASE_VIDEO_DETAILS_URL='http://staxus.com/trial/%s'
+BASE_VIDEO_DETAILS_URL = BASE_URL % '/trial%s'
 
 # Example Search URL:
 # http://staxus.com/trial/search.php?query=Staxus+Classic%3A+BB+Skate+Rave+-+Scene+1+-+Remastered+in+HD
-BASE_SEARCH_URL='http://staxus.com/trial/search.php?st=advanced&qall=%s'
+BASE_SEARCH_URL = BASE_URL % '/trial/search.php?st=advanced&qall=%s'
 
 def Start():
 	Log.Info('-----------------------------------------------------------------------')
@@ -46,7 +48,7 @@ class Staxus(Agent.Movies):
 	languages = AGENT_LANGUAGES
 	media_types = ['Movie']
 	primary_provider = AGENT_PRIMARY_PROVIDER
-	fallback_agent = False
+	fallback_agent = AGENT_FALLBACK_AGENT
 	contributes_to = AGENT_CONTRIBUTES_TO
 
 	def log(self, state, message, *args):
@@ -90,11 +92,11 @@ class Staxus(Agent.Movies):
 				return
 
 		# File names to match for this agent
-		self.log('info', 'UPDATE - Regular expression: %s', str(Prefs['regex']))
+		self.log('info', 'SEARCH - Regular expression: %s', str(Prefs['regex']))
 		try:
 			file_name_pattern = re.compile(Prefs['regex'], re.IGNORECASE)
 		except Exception as e:
-			self.log('error', 'UPDATE - Error regex pattern: %s', e)
+			self.log('error', 'SEARCH - Error regex pattern: %s', e)
 			return
 
 		m = file_name_pattern.search(file_name)
@@ -112,39 +114,51 @@ class Staxus(Agent.Movies):
 			return
 
 		clip_name = groups['clip_name']
-		self.log('debug', 'SEARCH - Split File Name: %s', file_name.split(' '))
-		search_query_raw = list()
-		# Process the split filename to remove words with special characters. This is to attempt to find a match with the limited search function(doesn't process any non-alphanumeric characters correctly)
-		for piece in clip_name.split(' '):
-			search_query_raw.append(cgi.escape(piece))
-		search_query = "%2C+".join(search_query_raw)
-		self.log('debug', 'SEARCH - Search Query: %s', search_query)
-		html = HTML.ElementFromURL(BASE_SEARCH_URL % search_query.replace('–', '-'), sleep=REQUEST_DELAY)
-		search_results = html.xpath('//*[@class="item"]')
-		score = 10
-		self.log('debug', 'SEARCH - results size: %s', len(search_results))
-		# Enumerate the search results looking for an exact match. The hope is that by eliminating special character words from the title and searching the remainder that we will get the expected video in the results.
-		for result in search_results:
-			#result=result.find('')
-			video_title = result.findall("div/a/img")[0].get("alt")
-			video_title = video_title.lstrip()
+		clip_number = groups['clip_number']
+		if clip_name.isdigit() or clip_number is not None and clip_number.isdigit():
+			video_url = BASE_VIDEO_DETAILS_URL % "/gallery.php?id=" + clip_number
+			self.log('info', 'SEARCH - DIRECT SCENE MATCH: %s', video_url);
+			self.rating = 5
+			html = HTML.ElementFromURL(video_url, sleep=REQUEST_DELAY)
+			video_title = html.xpath('//div[@class="video-descr__title"]/div[@class="row-flex"]/div[@class="col-md-7 col-xs-12"]/h2/text()')[0]
+			results.Append(MetadataSearchResult(id = video_url, name = video_title, score = 100, lang = lang))
+		else:
+			self.log('debug', 'SEARCH - Split File Name: %s', file_name.split(' '))
+			search_query_raw = list()
+			# Process the split filename to remove words with special characters. This is to attempt to find a match with the limited search function(doesn't process any non-alphanumeric characters correctly)
+			for piece in clip_name.split(' '):
+				search_query_raw.append(cgi.escape(piece))
+			search_query = "%2C+".join(search_query_raw)
+			search_query = search_query.replace('–', '-').replace('“', '"').replace('”', '"')
+			self.log('debug', 'SEARCH - Search Query: %s', search_query)
+			html = HTML.ElementFromURL(BASE_SEARCH_URL % search_query, sleep=REQUEST_DELAY)
+			search_results = html.xpath('//*[@class="item"]')
+			score = 10
+			self.log('debug', 'SEARCH - results size: %s', len(search_results))
+			# Enumerate the search results looking for an exact match. The hope is that by eliminating special character words from the title and searching the remainder that we will get the expected video in the results.
+			for search_result in search_results:
+				#result=result.find('')
+				video_title = search_result.findall("div/a/img")[0].get("alt")
+				video_title = video_title.strip()
 
-			utils = Utils()
-			matchscore = utils.getMatchScore(video_title.lower(), clip_name.lower())
+				utils = Utils()
+				matchscore = utils.getMatchScore(video_title.lower(), clip_name.lower())
+				self.log('debug', 'SEARCH - video title percentage: %s', matchscore)
 
-			self.log('debug', 'SEARCH - video title: %s', video_title)
-			# Check the alt tag which includes the full title with special characters against the video title. If we match we nominate the result as the proper metadata. If we don't match we reply with a low score.
-			if matchscore > 90:
-				video_url=result.findall("div/a")[0].get('href')
-				self.log('debug', 'SEARCH - video url: %s', video_url)
-				image_url=result.findall("div/a/img")[0].get("src")
-				self.log('debug', 'SEARCH - image url: %s', image_url)
-				self.log('debug', 'SEARCH - Exact Match "' + file_name.lower() + '" == "%s"' % video_title.lower())
-				results.Append(MetadataSearchResult(id = video_url, name = video_title, score = 100, lang = lang))
-			else:
-				self.log('debug', 'SEARCH - Title not found "' + file_name.lower() + '" != "%s"' % video_title.lower())
-				score=score-1
-				results.Append(MetadataSearchResult(id = '', name = media.filename, score = score, lang = lang))
+				self.log('debug', 'SEARCH - video title: %s', video_title)
+				# Check the alt tag which includes the full title with special characters against the video title. If we match we nominate the result as the proper metadata. If we don't match we reply with a low score.
+				if matchscore > 90:
+					video_url = search_result.findall("div/a")[0].get('href')
+					video_url = BASE_VIDEO_DETAILS_URL % '/' + video_url
+					self.log('debug', 'SEARCH - video url: %s', video_url)
+					image_url = search_result.findall("div/a/img")[0].get("src")
+					self.log('debug', 'SEARCH - image url: %s', image_url)
+					self.log('debug', 'SEARCH - Exact Match "' + file_name.lower() + '" == "%s"' % video_title.lower())
+					results.Append(MetadataSearchResult(id = video_url, name = video_title, score = 100, lang = lang))
+				else:
+					self.log('debug', 'SEARCH - Title not found "' + file_name.lower() + '" != "%s"' % video_title.lower())
+					score=score-1
+					results.Append(MetadataSearchResult(id = '', name = media.filename, score = score, lang = lang))
 
 	def update(self, metadata, media, lang, force=False):
 		self.log('info', 'UPDATE CALLED')
@@ -155,7 +169,7 @@ class Staxus(Agent.Movies):
 		file_path = media.items[0].parts[0].file
 		self.log('info', 'UPDATE - File Path: %s', file_path)
 		self.log('info', 'UPDATE - Video URL: %s', metadata.id)
-		url = BASE_VIDEO_DETAILS_URL % metadata.id
+		url = metadata.id
 
 		# Fetch HTML
 		html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
@@ -174,31 +188,41 @@ class Staxus(Agent.Movies):
 			i = 0
 			coverPrefs = Prefs['cover']
 			for image in video_image_list:
-				if i != coverPrefs or coverPrefs == "all available":
+				if i <= (self.intTest(coverPrefs)-1) or coverPrefs == "all available":
 					thumb_url = re.search(video_image_pattern, image).group(1)
 					thumb_url = thumb_url.replace('//', 'https://')
 					self.log('info', 'UPDATE - thumb_url: "%s"' % thumb_url)
-					# poster_url = thumb_url.replace('300h', '1920w')
-					# self.log('info', 'UPDATE - poster_url: "%s"' % poster_url)
-					valid_image_names.append(thumb_url)
-					if thumb_url not in metadata.posters:
+					poster_url = thumb_url.replace('300h', '1920w')
+					self.log('info', 'UPDATE - poster_url: "%s"' % poster_url)
+					valid_image_names.append(poster_url)
+					if poster_url not in metadata.posters:
 						try:
 							i += 1
-							metadata.posters[thumb_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
+							metadata.posters[poster_url]=Proxy.Preview(HTTP.Request(thumb_url), sort_order = i)
 						except: pass
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting posters: %s', e)
-			pass
+
+		valid_art_names = list()
+		try:
+			bg_image = html.xpath('//div[@class="player-wrapper aspect-ratio"]')
+			bg_image = bg_image[0].get("style")
+			bg_image = bg_image.split("'")[1];
+			bg_image = bg_image.replace("//","https://")
+			valid_art_names.append(bg_image)
+			self.log('info', 'UPDATE - Art: %s', bg_image)
+			metadata.art[bg_image] = Proxy.Media(HTTP.Request(bg_image), sort_order=1)
+			metadata.art.validate_keys(valid_art_names)
+		except Exception as e:
+			self.log('error', 'UPDATE - Error getting art: %s', e)
 
 		# Try to get description text.
 		try:
-			raw_about_text = html.xpath('//div[@class="video-descr__content"]/p')
-			about_text = ' '.join(str(x.text_content().strip()) for x in raw_about_text)
+			about_text = html.xpath('//div[@class="video-descr__content"]/p/text()')[0]
 			self.log('info', 'UPDATE - About Text: %s', about_text)
 			metadata.summary = about_text
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting description text: %s', e)
-			pass
 
 		# Try to get release date.
 		try:
@@ -211,21 +235,48 @@ class Staxus(Agent.Movies):
 			metadata.year = metadata.originally_available_at.year
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting release date: %s', e)
-			pass
 
 		# Try to get and process the video cast.
 		try:
 			metadata.roles.clear()
-			htmlcast = html.xpath('//div[@class="video-descr__model-listing"]/div/p/a/text()')
-			self.log('info', 'UPDATE - cast: "%s"' % htmlcast)
-			for cast in htmlcast:
-				cname = cast.strip()
-				if (len(cname) > 0):
+			search_cast_results = html.xpath('//div[@class="video-descr__model-item"]')
+			self.log('info', 'UPDATE - cast: "%s"' % search_cast_results)
+			for search_result in search_cast_results:
+				cast = search_result.find("p/a")
+				if (len(cast.text) > 0):
 					role = metadata.roles.new()
-					role.name = cname
+					role.name = cast.text
+
+					model_href = BASE_URL % cast.get('href')
+					self.log('info', 'UPDATE - cast url: "%s"', model_href)
+					cast_image_element = search_result.find('div')
+					cast_image_element = cast_image_element.get('style')
+					cast_image_element = cast_image_element.split("'")[1];
+					cast_image_element = cast_image_element.replace("//","https://")
+					model_headshot_lo_res = cast_image_element
+					try:
+						# model_page = HTML.ElementFromURL(model_href, sleep=REQUEST_DELAY)
+						#Ask facebox to query image for face bounding boxes
+						cropped_headshot = model_headshot_lo_res
+						try:
+							result = requests.post('https://neural.vigue.me/facebox/check', json={"url": model_headshot_lo_res}, verify=certifi.where())
+							self.log('info', result.json()["facesCount"])
+							if result.json()["facesCount"] == 1:
+								box = result.json()["faces"][0]["rect"]
+								cropped_headshot = "https://cdn.vigue.me/unsafe/" + str(abs(box["left"] - 50)) + "x" + str(abs(box["top"] - 50)) + ":" + str(abs((box["left"]+box["width"])+50)) + "x" + str(abs((box["top"]+box["height"])+50)) + "/" + headshot_url_hi_res
+							else:
+								cropped_headshot = model_headshot_lo_res
+							#Create new image url from Thumbor CDN with facial bounding box
+						except Exception as e:
+							self.log('error', 'UPDATE - Error getting video cast image: %s', e)
+							self.log('info', 'UPDATE - Trying video cast image backup: %s', model_headshot_lo_res)
+							cropped_headshot = model_headshot_lo_res
+						self.log("UPDATE - Cropped headshot: %s", cropped_headshot)
+						role.photo = cropped_headshot
+					except Exception as e:
+						self.log('error', 'UPDATE - Error getting video cast image: %s', e)
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting video cast: %s', e)
-			pass
 
 		# Try to get and process the video genres.
 		try:
@@ -235,10 +286,10 @@ class Staxus(Agent.Movies):
 			for genre in genres:
 				genre = genre.strip()
 				if (len(genre) > 0):
+					genre = genre.replace("arse","ass").replace(" (18+)","")
 					metadata.genres.add(genre)
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting video genres: %s', e)
-			pass
 
 		# Try to get and process the ratings.
 		rating = html.xpath('//span[@class="video-grade-average"]/strong/text()')[0]
@@ -253,10 +304,8 @@ class Staxus(Agent.Movies):
 			metadata.rating_count = int(rating_count)
 		except Exception as e:
 			self.log('error', 'UPDATE - Error getting rating: %s', e)
-			pass
 
 		metadata.posters.validate_keys(valid_image_names)
-
 		metadata.content_rating = 'X'
 		metadata.title = video_title
 		metadata.studio = AGENT_NAME
